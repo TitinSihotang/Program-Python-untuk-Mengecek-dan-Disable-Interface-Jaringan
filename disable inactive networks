@@ -1,0 +1,56 @@
+import subprocess
+
+def get_interfaces():
+    """Mengambil semua interface jaringan beserta statusnya (UP/DOWN)."""
+    try:
+        result = subprocess.check_output(["ip", "-o", "link", "show"], text=True)
+        interfaces = []
+        for line in result.splitlines():
+            parts = line.split(": ")
+            if len(parts) >= 3:
+                name = parts[1].split("@")[0]
+                state = "UP" if "UP" in parts[2] else "DOWN"
+                interfaces.append((name, state))
+        return interfaces
+    except subprocess.CalledProcessError as e:
+        print(" Gagal membaca daftar interface:", e)
+        return []
+
+def disable_inactive_interfaces(interfaces):
+    """Menonaktifkan interface yang statusnya DOWN (kecuali loopback)."""
+    disabled = []
+    for name, state in interfaces:
+        if name == "lo":
+            continue  # abaikan loopback
+        if state == "DOWN":
+            print(f" Menonaktifkan interface yang tidak aktif: {name}")
+            subprocess.run(["sudo", "ip", "link", "set", name, "down"])
+            disabled.append(name)
+    return disabled
+
+def main():
+    interfaces = get_interfaces()
+
+    if not interfaces:
+        print("Tidak ada interface jaringan ditemukan.")
+        return
+
+    print(" Status jaringan saat ini:")
+    for name, state in interfaces:
+        print(f" - {name}: {state}")
+
+    down_list = [i for i, s in interfaces if s == "DOWN" and i != "lo"]
+
+    if not down_list:
+        print("\n Semua interface dalam keadaan UP — tidak ada yang perlu dinonaktifkan.")
+    else:
+        disabled = disable_inactive_interfaces(interfaces)
+        if disabled:
+            print("\n Interface yang berhasil dinonaktifkan:")
+            for name in disabled:
+                print(f" - {name}")
+        else:
+            print("\n Tidak ada interface yang dinonaktifkan.")
+
+if __name__ == "__main__":
+    main()
